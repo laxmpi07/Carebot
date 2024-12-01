@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Care Bot AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c7da0;
+            --background-color: #f4f6f9;
+            --text-color: #333;
+            --accent-color: #4CAF50;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            line-height: 1.6;
+            color: var(--text-color);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 450px;
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .app-header {
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            padding: 15px;
+        }
+
+        .app-header h1 {
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+
+        .app-header p {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        #chat-container {
+            height: 550px;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: #f9fafc;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary-color) transparent;
+        }
+
+        #chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #chat-container::-webkit-scrollbar-thumb {
+            background-color: var(--primary-color);
+            border-radius: 10px;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+            position: relative;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .user-message {
+            background-color: var(--primary-color);
+            color: white;
+            align-self: flex-end;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot-message {
+            background-color: #f0f4f8;
+            color: var(--text-color);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .bot-message h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--primary-color);
+        }
+
+        .bot-message ul {
+            list-style-type: none;
+            padding-left: 10px;
+        }
+
+        .bot-message ul li {
+            position: relative;
+            padding-left: 15px;
+            margin-bottom: 5px;
+        }
+
+        .bot-message ul li::before {
+            content: '•';
+            color: var(--accent-color);
+            position: absolute;
+            left: 0;
+        }
+
+        .input-area {
+            display: flex;
+            padding: 15px;
+            background-color: white;
+            border-top: 1px solid #e9ecef;
+        }
+
+        #message-input {
+            flex-grow: 1;
+            padding: 12px 15px;
+            border: 1px solid #e0e4e8;
+            border-radius: 25px;
+            margin-right: 10px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        #message-input:focus {
+            border-color: var(--primary-color);
+        }
+
+        #send-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.3s;
+        }
+
+        #send-btn:hover {
+            transform: scale(1.05);
+            background-color: #1f5d7a;
+        }
+
+        .loading {
+            font-style: italic;
+            color: #6c757d;
+            text-align: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="app-header">
+            <h1>Care Bot AI</h1>
+            <p>Your personal health assistant, anytime, anywhere</p>
+        </div>
+        <div id="chat-container"></div>
+        <div class="input-area">
+            <input type="text" id="message-input" placeholder="Ask a health question...">
+            <button id="send-btn">➤</button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2';
+        const API_KEY = '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';
+
+        const quickGuides = {
+            flu: {
+                title: 'Flu Management',
+                advice: [
+                    'Rest completely and stay isolated',
+                    'Hydrate frequently with water and herbal tea',
+                    'Take over-the-counter pain relievers',
+                    'Use fever reducers as recommended',
+                    'Consume light, nutritious meals',
+                    'Monitor your temperature'
+                ]
+            },
+            cold: {
+                title: 'Cold Relief Strategies',
+                advice: [
+                    'Stay well-hydrated with warm liquids',
+                    'Rest and get plenty of sleep',
+                    'Use saline nasal drops for congestion',
+                    'Take vitamin C supplements',
+                    'Gargle with warm salt water',
+                    'Keep warm and avoid drafts'
+                ]
+            },
+            headache: {
+                title: 'Headache Management',
+                advice: [
+                    'Drink plenty of water to prevent dehydration',
+                    'Rest in a quiet, dimly lit room',
+                    'Apply a cool or warm compress',
+                    'Take recommended pain medication',
+                    'Practice gentle neck and scalp massage',
+                    'Consider stress-reduction techniques'
+                ]
+            }
+        };
+
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        function cleanseText(text) {
+            return text.replace(/^[#*]+/gm, '').trim();
+        }
+
+        function cleanseText(text) {
+    // Remove numbering, bullet points, and trim
+    return text.replace(/^[*#0-9.\s]+/gm, '').trim();
+}
+
+        function formatResponse(key, response) {
+            const guide = quickGuides[key];
+            if (guide) {
+                let formattedResponse = `<h3>${guide.title}</h3><ul>`;
+                guide.advice.forEach(advice => {
+                    formattedResponse += `<li>${advice}</li>`;
+                });
+                formattedResponse += '</ul>';
+                return formattedResponse;
+            }
+
+            // For condition-specific responses like asthma
+            const cleanResponse = cleanseText(response);
+            let formattedResponse = '<ul>';
+            
+            const sentences = cleanResponse
+                .split(/[.!?]+/)
+                .filter(s => 
+                    s.trim().length > 15 && 
+                    !s.toLowerCase().includes('here are') &&
+                    !s.toLowerCase().includes('no cure')
+                )
+                .slice(0, 4);
+            
+            sentences.forEach(sentence => {
+                formattedResponse += `<li>${sentence.trim()}</li>`;
+            });
+    
+    formattedResponse += '</ul>';
+    return formattedResponse;
+}
+
+        function addMessage(content, role) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', `${role}-message`);
+            
+            messageDiv.innerHTML = role === 'bot' 
+                ? formatResponse(content.toLowerCase(), content)
+                : content;
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function showLoading() {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.classList.add('message', 'bot-message', 'loading');
+            loadingDiv.textContent = 'Analyzing your health query...';
+            chatContainer.appendChild(loadingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return loadingDiv;
+        }
+
+        function removeLoading(loadingElement) {
+            if (loadingElement) {
+                chatContainer.removeChild(loadingElement);
+            }
+        }
+
+        async function sendMessageToAPI(message) {
+            const loadingElement = showLoading();
+
+            const lowerMessage = message.toLowerCase();
+            for (let key in quickGuides) {
+                if (lowerMessage.includes(key)) {
+                    removeLoading(loadingElement);
+                    addMessage(key, 'bot');
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        inputs: message,
+                        parameters: {
+                            max_new_tokens: 100,
+                            temperature: 0.7,
+                            top_p: 0.9
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                const botResponse = data[0]?.generated_text || 
+                    data[0]?.text || 
+                    'Unable to generate a helpful response';
+
+                removeLoading(loadingElement);
+                addMessage(botResponse, 'bot');
+
+            } catch (error) {
+                removeLoading(loadingElement);
+                addMessage('Service temporarily unavailable', 'bot');
+                console.error('API Error:', error);
+            }
+        }
+
+        sendBtn.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            if (message) {
+                addMessage(message, 'user');
+                sendMessageToAPI(message);
+                messageInput.value = '';
+            }
+        });
+
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const message = messageInput.value.trim();
+                if (message) {
+                    addMessage(message, 'user');
+                    sendMessageToAPI(message);
+                    messageInput.value = '';
+                }
+            }
+        });
+
+        // Initial Greeting
+        addMessage('Welcome to Care Bot AI! How can I help you with your health concerns today?', 'bot');
+    </script>
+</body>
+</html>
